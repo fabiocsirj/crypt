@@ -2,39 +2,55 @@ package crypt
 
 import (
 	"math/big"
+	"math/rand"
+	"strconv"
+	"time"
 )
 
-func x(d, k1, k2 *big.Int) *big.Int {
-	r := big.NewInt(1)
-	if k1.Cmp(big.NewInt(0)) == 0 && k2.Cmp(big.NewInt(0)) == 0 {
-		return r
+func genPrimo(t *int) *big.Int {
+	primo := big.NewInt(0)
+	s := rand.NewSource(time.Now().UnixNano())
+	r := rand.New(s)
+
+	var n int
+	var ns string
+	for i := 0; i < *t; i++ {
+		n = r.Intn(10)
+		if i == *t-1 && n%2 == 0 {
+			n++
+		}
+		ns += strconv.Itoa(n)
 	}
-	k1d := big.NewInt(0)
-	k1d.Mul(k1, d)
-	return r.Sub(k2, k1d)
+
+	primo.SetString(ns, 0)
+	for !primo.ProbablyPrime(20) {
+		primo.Add(primo, big.NewInt(2))
+	}
+
+	return primo
 }
 
-//GetPrivKey ...
-func GetPrivKey(a, b big.Int, uv ...*big.Int) *big.Int {
-	var d, r big.Int
-	d.Div(&a, &b)
-	r.Mod(&a, &b)
-	var u1, u2, v1, v2 *big.Int
-	if len(uv) > 0 {
-		u1, u2, v1, v2 = uv[0], uv[1], uv[2], uv[3]
-	} else {
-		u1, u2, v1, v2 = big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0)
-	}
+// GetKeys return 3 keys (*big.Int):
+// 1 - Mod
+// 2 - Public Key
+// 3 - Private Key
+func GetKeys() (mod, pub, priv *big.Int) {
+	t := 155
+	p := genPrimo(&t)
+	q := genPrimo(&t)
+	t = 78
+	pub = genPrimo(&t)
 
-	if r.Cmp(big.NewInt(0)) == 0 {
-		return v1
-	}
-	u := x(&d, u1, u2)
-	v := x(&d, v1, v2)
-	if v.Cmp(big.NewInt(1)) == 0 {
-		v.Neg(&d)
-		v1.Set(big.NewInt(1))
-	}
+	mod = big.NewInt(0)
+	mod.Mul(p, q)
 
-	return GetPrivKey(b, r, u, u1, v, v1)
+	var m big.Int
+	p.Sub(p, big.NewInt(1))
+	q.Sub(q, big.NewInt(1))
+	m.Mul(p, q)
+
+	priv = big.NewInt(0)
+	priv.ModInverse(pub, &m)
+
+	return
 }
